@@ -1,5 +1,6 @@
 const express = require('express');
 const cors = require('cors');
+const jwt = require('jsonwebtoken');
 require('dotenv').config()
 const { MongoClient, ServerApiVersion, ObjectId } = require('mongodb');
 const app = express();
@@ -22,7 +23,7 @@ const client = new MongoClient(uri, {
 async function run() {
     try {
     // Connect the client to the server	(optional starting in v4.7)
-        await client.connect();
+        // await client.connect();
         const database = client.db('brandShopDB');
         const productsCollection = database.collection("productsCollection");
         const cartCollection = database.collection("cartCollection");
@@ -30,6 +31,28 @@ async function run() {
         const estimate = await productsCollection.estimatedDocumentCount();
         console.log(`Estimated count: ${estimate}`);
 
+        // JWT APIs
+        app.post('/jwt', async (req, res) => {
+            const user = req.body;
+            const token = jwt.sign(user, process.env.ACCESS_TOKEN_SECRET, { expiresIn: '1hr' });
+            res.send({ token });
+        });
+
+        // middleware for verifying jwt access token
+        const verifyToken = (req, res, next) => {
+            const authorization = req.headers.authorization;
+            if(!authorization) {
+                return res.status(401).send({ message: 'Unauthorized access' });
+            }
+            const token = authorization.split(' ').at(1);
+            jwt.verify(token, process.env.ACCESS_TOKEN_SECRET, (err, decoded) => {
+                if (err) {
+                    return res.status(401).send({ message: 'Unauthorized access' });
+                }
+                req.decoded = decoded;
+                next();
+            });
+        }
         // products related APIs
         app.get("/products", async (req, res) => {
             const cursor = productsCollection.find();
